@@ -10,6 +10,8 @@ EFI_BINARY := $(BUILD_DIR)/bootloader.efi
 ESP_DIR := esp
 ESP_BOOT_DIR := $(ESP_DIR)/EFI/BOOT
 ESP_BOOT_EFI := $(ESP_BOOT_DIR)/BOOTX64.EFI
+KERNEL_ELF ?= kernel.elf
+ESP_KERNEL_ELF := $(ESP_BOOT_DIR)/kernel.elf
 OVMF_VARS_LOCAL := OVMF_VARS.fd
 
 OVMF_CODE := $(firstword $(wildcard \
@@ -21,16 +23,18 @@ OVMF_VARS_TEMPLATE := $(firstword $(wildcard \
 	/usr/share/OVMF/OVMF_VARS_4M.fd \
 	/usr/share/ovmf/OVMF_VARS.fd))
 
-.PHONY: all help build esp run clean
+.PHONY: all help build esp run clean FORCE
 
 all: build
 
 help:
 	@printf '%s\n' \
 		'make build  - build the UEFI application' \
-		'make esp    - stage BOOTX64.EFI into ./esp' \
+		'make esp    - stage BOOTX64.EFI and kernel.elf into ./esp/EFI/BOOT' \
 		'make run    - boot the app in QEMU with OVMF' \
-		'make clean  - remove build and local run artifacts'
+		'make clean  - remove build and local run artifacts' \
+		'' \
+		'Set KERNEL_ELF=/path/to/kernel.elf if the kernel is not ./kernel.elf'
 
 build:
 	$(CARGO) build --target $(TARGET) $(if $(filter release,$(PROFILE)),--release,)
@@ -41,7 +45,20 @@ $(ESP_BOOT_DIR):
 $(ESP_BOOT_EFI): $(EFI_BINARY) | $(ESP_BOOT_DIR)
 	cp $(EFI_BINARY) $(ESP_BOOT_EFI)
 
-esp: $(ESP_BOOT_EFI)
+$(ESP_KERNEL_ELF): FORCE | $(ESP_BOOT_DIR)
+	@if [ -f "$(KERNEL_ELF)" ]; then \
+		cp "$(KERNEL_ELF)" "$(ESP_KERNEL_ELF)"; \
+	elif [ -f "$(ESP_KERNEL_ELF)" ]; then \
+		echo "Using existing $(ESP_KERNEL_ELF)"; \
+	else \
+		echo "Missing kernel ELF: $(KERNEL_ELF)"; \
+		echo "Build or copy your kernel there, copy it to $(ESP_KERNEL_ELF), or run: make esp KERNEL_ELF=/path/to/kernel.elf"; \
+		exit 1; \
+	fi
+
+FORCE:
+
+esp: $(ESP_BOOT_EFI) $(ESP_KERNEL_ELF)
 
 $(OVMF_VARS_LOCAL):
 	@test -n "$(OVMF_CODE)" || { echo "Missing OVMF firmware. Install ovmf."; exit 1; }
