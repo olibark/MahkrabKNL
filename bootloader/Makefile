@@ -12,6 +12,10 @@ ESP_BOOT_DIR := $(ESP_DIR)/EFI/BOOT
 ESP_BOOT_EFI := $(ESP_BOOT_DIR)/BOOTX64.EFI
 KERNEL_ELF ?= kernel.elf
 ESP_KERNEL_ELF := $(ESP_BOOT_DIR)/kernel.elf
+TEST_KERNEL_DIR := test_kernel
+TEST_KERNEL_ASM := $(TEST_KERNEL_DIR)/entry.S
+TEST_KERNEL_LINKER := $(TEST_KERNEL_DIR)/linker.ld
+TEST_KERNEL_OBJ := target/test-kernel/entry.o
 OVMF_VARS_LOCAL := OVMF_VARS.fd
 
 OVMF_CODE := $(firstword $(wildcard \
@@ -23,13 +27,14 @@ OVMF_VARS_TEMPLATE := $(firstword $(wildcard \
 	/usr/share/OVMF/OVMF_VARS_4M.fd \
 	/usr/share/ovmf/OVMF_VARS.fd))
 
-.PHONY: all help build esp run clean FORCE
+.PHONY: all help build test-kernel esp run clean FORCE
 
 all: build
 
 help:
 	@printf '%s\n' \
 		'make build  - build the UEFI application' \
+		'make test-kernel - build a minimal valid x86_64 kernel.elf' \
 		'make esp    - stage BOOTX64.EFI and kernel.elf into ./esp/EFI/BOOT' \
 		'make run    - boot the app in QEMU with OVMF' \
 		'make clean  - remove build and local run artifacts' \
@@ -38,6 +43,15 @@ help:
 
 build:
 	$(CARGO) build --target $(TARGET) $(if $(filter release,$(PROFILE)),--release,)
+
+$(TEST_KERNEL_OBJ): $(TEST_KERNEL_ASM)
+	mkdir -p $(dir $@)
+	as --64 -o $@ $<
+
+kernel.elf: $(TEST_KERNEL_OBJ) $(TEST_KERNEL_LINKER)
+	ld -nostdlib -m elf_x86_64 -T $(TEST_KERNEL_LINKER) -o $@ $(TEST_KERNEL_OBJ)
+
+test-kernel: kernel.elf
 
 $(ESP_BOOT_DIR):
 	mkdir -p $(ESP_BOOT_DIR)
@@ -52,7 +66,7 @@ $(ESP_KERNEL_ELF): FORCE | $(ESP_BOOT_DIR)
 		echo "Using existing $(ESP_KERNEL_ELF)"; \
 	else \
 		echo "Missing kernel ELF: $(KERNEL_ELF)"; \
-		echo "Build or copy your kernel there, copy it to $(ESP_KERNEL_ELF), or run: make esp KERNEL_ELF=/path/to/kernel.elf"; \
+		echo "Build or copy your kernel there, run: make test-kernel, or run: make esp KERNEL_ELF=/path/to/kernel.elf"; \
 		exit 1; \
 	fi
 

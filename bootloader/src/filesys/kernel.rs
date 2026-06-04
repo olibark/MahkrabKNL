@@ -1,11 +1,10 @@
 use alloc::vec::Vec;
 
-use uefi::{boot, fs::FileSystem};
-
 use super::{
-    constants::KERNEL_PATH,
+    constants::constants::KERNEL_PATH,
     error::{KernelLoadError, Result},
 };
+use uefi::{boot, fs::FileSystem};
 
 #[derive(Debug)]
 pub struct KernelImage {
