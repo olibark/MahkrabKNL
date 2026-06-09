@@ -5,7 +5,8 @@ PROFILE ?= debug
 QEMU ?= qemu-system-x86_64
 
 CARGO := cargo
-BUILD_DIR := target/$(TARGET)/$(PROFILE)
+CARGO_TARGET_DIR ?= target
+BUILD_DIR := $(CARGO_TARGET_DIR)/$(TARGET)/$(PROFILE)
 EFI_BINARY := $(BUILD_DIR)/bootloader.efi
 ESP_DIR := esp
 ESP_BOOT_DIR := $(ESP_DIR)/EFI/BOOT
@@ -34,15 +35,17 @@ all: build
 help:
 	@printf '%s\n' \
 		'make build  - build the UEFI application' \
-		'make test-kernel - build a minimal valid x86_64 kernel.elf' \
+		'make test-kernel - build and stage an ELF loader exercise kernel.elf' \
 		'make esp    - stage BOOTX64.EFI and kernel.elf into ./esp/EFI/BOOT' \
 		'make run    - boot the app in QEMU with OVMF' \
 		'make clean  - remove build and local run artifacts' \
 		'' \
 		'Set KERNEL_ELF=/path/to/kernel.elf if the kernel is not ./kernel.elf'
 
-build:
-	$(CARGO) build --target $(TARGET) $(if $(filter release,$(PROFILE)),--release,)
+build: $(EFI_BINARY)
+
+$(EFI_BINARY): FORCE
+	CARGO_TARGET_DIR=$(CARGO_TARGET_DIR) $(CARGO) build --target $(TARGET) $(if $(filter release,$(PROFILE)),--release,)
 
 $(TEST_KERNEL_OBJ): $(TEST_KERNEL_ASM)
 	mkdir -p $(dir $@)
@@ -51,7 +54,8 @@ $(TEST_KERNEL_OBJ): $(TEST_KERNEL_ASM)
 kernel.elf: $(TEST_KERNEL_OBJ) $(TEST_KERNEL_LINKER)
 	ld -nostdlib -m elf_x86_64 -T $(TEST_KERNEL_LINKER) -o $@ $(TEST_KERNEL_OBJ)
 
-test-kernel: kernel.elf
+test-kernel: kernel.elf | $(ESP_BOOT_DIR)
+	cp kernel.elf $(ESP_KERNEL_ELF)
 
 $(ESP_BOOT_DIR):
 	mkdir -p $(ESP_BOOT_DIR)

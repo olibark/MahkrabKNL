@@ -1,4 +1,4 @@
-use crate::elf::constants::error::ElfLoadError;
+use crate::elf::constants::ElfLoadError;
 
 pub fn read_u16(bytes: &[u8], offset: usize) -> Result<u16, ElfLoadError> {
     let end = offset + 2;

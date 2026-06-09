@@ -1,7 +1,6 @@
-use crate::elf::constants::error::ElfLoadError;
 use crate::elf::{
-    constants::constants::{
-        EiIndex, Elf64Ehdr, ElfClass, ElfData, ElfMachine, ElfMagic, ElfType, ElfVersion,
+    constants::{
+        EiIndex, Elf64Ehdr, ElfClass, ElfData, ElfMachine, ElfMagic, ElfType, ElfVersion, ElfLoadError
     },
     le_read::{read_u16, read_u32, read_u64},
 };
