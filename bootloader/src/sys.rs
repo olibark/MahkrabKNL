@@ -1,5 +1,5 @@
-use uefi::boot;
 use core::time::Duration;
+use uefi::boot;
 
 pub fn halt() -> ! {
     loop {

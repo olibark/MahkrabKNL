@@ -1,9 +1,10 @@
-pub(crate) mod le_read;
-pub(crate) mod validate;
-pub(crate) mod conversion;
 pub(crate) mod constants;
-pub(crate) mod io;
+pub(crate) mod conversion;
+pub(crate) mod le_read;
+pub(crate) mod load;
+pub(crate) mod pages;
+pub(crate) mod program_header;
+pub(crate) mod validate;
 
+pub(crate) use load::load_kernel_segments;
 pub(crate) use validate::validate_elf64_x86_64;
-pub(crate) use io::print_load_segments;
-

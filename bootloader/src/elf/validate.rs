@@ -1,6 +1,7 @@
 use crate::elf::{
     constants::{
-        EiIndex, Elf64Ehdr, ElfClass, ElfData, ElfMachine, ElfMagic, ElfType, ElfVersion, ElfLoadError
+        EiIndex, Elf64Ehdr, ElfClass, ElfData, ElfLoadError, ElfMachine, ElfMagic, ElfType,
+        ElfVersion,
     },
     le_read::{read_u16, read_u32, read_u64},
 };

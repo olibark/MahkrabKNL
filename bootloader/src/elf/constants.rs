@@ -38,6 +38,8 @@ pub type Elf64Off = u64;
 pub type Elf64Word = u32;
 pub type Elf64Half = u16;
 
+use uefi::Status;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(u8)]
 pub enum ElfClass {
@@ -203,4 +205,10 @@ pub enum ElfLoadError {
     InvalidHeaderSize,
     InvalidProgramHeaderSize,
     ProgramHeaderTableOutOfBounds,
+    SegmentFileLargerThanMemory,
+    SegmentFileRangeOutOfBounds,
+    SegmentSizeOverflow,
+    SegmentAddressOverflow,
+    NullLoadAddress,
+    AllocatePages(Status),
 }

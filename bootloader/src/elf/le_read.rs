@@ -15,7 +15,7 @@ pub fn read_u32(bytes: &[u8], offset: usize) -> Result<u32, ElfLoadError> {
         return Err(ElfLoadError::TooSmall);
     }
 
-    Ok(u32::from_le_bytes([
+    Ok(u32::from_le_bytes([ //How french
         bytes[offset],
         bytes[offset + 1],
         bytes[offset + 2],
