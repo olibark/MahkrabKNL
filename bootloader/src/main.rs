@@ -4,7 +4,7 @@
 extern crate alloc;
 
 use crate::{
-    elf::{load_kernel_segments, validate_elf64_x86_64},
+    elf::{load_kernel_segments, validate_elf64_x86_64, verify_loaded_segments},
     filesys::KERNEL_PATH_DISPLAY,
 };
 
@@ -18,7 +18,9 @@ pub(crate) mod sys;
 
 #[entry]
 fn main() -> Status {
-    if let Err(err) = uefi::helpers::init() { return err.status() }
+    if let Err(err) = uefi::helpers::init() {
+        return err.status();
+    }
 
     info!("BOOTX64.EFI started");
 
@@ -45,14 +47,21 @@ fn main() -> Status {
                                 loaded_kernel.segments().len(),
                                 loaded_kernel.entry(),
                             );
-                            for segment in loaded_kernel.segments() {
+
+                            for (segment, verification) in loaded_kernel
+                                .segments()
+                                .iter()
+                                .zip(verify_loaded_segments(kernel.bytes(), &loaded_kernel))
+                            {
                                 let flags = segment.flags();
                                 info!(
-                                    "PHDR[{}] loaded: mem={:#x}..{:#x} (memsz={:#x}), alloc={:#x}..{:#x} ({} pages), flags={}{}{} ({:#x})",
-                                    segment.index(),
-                                    segment.load_address(),
-                                    segment.load_end(),
+                                    "PHDR[{}] verify: mem={:#x}..{:#x} (memsz={:#x}), file_copy={}, zero_fill={}, alloc={:#x}..{:#x} ({} pages), flags={}{}{} ({:#x})",
+                                    verification.index(),
+                                    verification.memory_start(),
+                                    verification.memory_end(),
                                     segment.mem_size(),
+                                    verification.file_copy(),
+                                    verification.zero_fill(),
                                     segment.allocated_address(),
                                     segment.allocated_end(),
                                     segment.allocated_pages(),
@@ -62,6 +71,8 @@ fn main() -> Status {
                                     flags.bits(),
                                 );
                             }
+
+                            info!("verification complete; halting before kernel entry");
                             Some(loaded_kernel)
                         }
                         Err(err) => {

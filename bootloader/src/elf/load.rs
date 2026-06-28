@@ -5,7 +5,7 @@ use log::info;
 
 use crate::elf::{
     constants::{Elf64Ehdr, Elf64Phdr, ElfLoadError, ProgramHeaderFlags, ProgramHeaderType},
-    pages::{LoadedPages, align_down_to_page, align_up_to_page, page_offset},
+    pages::{align_down_to_page, align_up_to_page, page_offset, LoadedPages},
     program_header::ProgramHeaders,
 };
 
@@ -34,14 +34,42 @@ pub struct LoadedSegment {
 }
 
 impl LoadedSegment {
-    pub fn index(&self) -> usize { self.index }
-    pub fn load_address(&self) -> usize { self.load_address }
-    pub fn load_end(&self) -> usize { self.load_end }
-    pub fn allocated_address(&self) -> usize { self.pages.start_address() }
-    pub fn allocated_end(&self) -> usize { self.allocated_end }
-    pub fn allocated_pages(&self) -> usize { self.pages.page_count() }
-    pub fn mem_size(&self) -> u64 { self.header.p_memsz }
-    pub fn flags(&self) -> ProgramHeaderFlags { self.header.p_flags }
+    pub fn index(&self) -> usize {
+        self.index
+    }
+    pub fn load_address(&self) -> usize {
+        self.load_address
+    }
+    pub fn load_end(&self) -> usize {
+        self.load_end
+    }
+    pub fn allocated_address(&self) -> usize {
+        self.pages.start_address()
+    }
+    pub fn allocated_end(&self) -> usize {
+        self.allocated_end
+    }
+    pub fn allocated_pages(&self) -> usize {
+        self.pages.page_count()
+    }
+    pub fn mem_size(&self) -> u64 {
+        self.header.p_memsz
+    }
+    pub fn memory_size(&self) -> usize {
+        self.load_end - self.load_address
+    }
+    pub fn file_offset(&self) -> usize {
+        self.header.p_offset as usize
+    }
+    pub fn file_size(&self) -> usize {
+        self.header.p_filesz as usize
+    }
+    pub fn file_end(&self) -> usize {
+        self.file_offset() + self.file_size()
+    }
+    pub fn flags(&self) -> ProgramHeaderFlags {
+        self.header.p_flags
+    }
 }
 
 pub fn load_kernel_segments(
@@ -77,9 +105,12 @@ fn load_segment(
         return Err(ElfLoadError::SegmentFileLargerThanMemory);
     }
 
-    let file_offset = usize::try_from(program_header.p_offset).map_err(|_| ElfLoadError::SegmentSizeOverflow)?;
-    let file_size = usize::try_from(program_header.p_filesz).map_err(|_| ElfLoadError::SegmentSizeOverflow)?;
-    let memory_size = usize::try_from(program_header.p_memsz).map_err(|_| ElfLoadError::SegmentSizeOverflow)?;
+    let file_offset =
+        usize::try_from(program_header.p_offset).map_err(|_| ElfLoadError::SegmentSizeOverflow)?;
+    let file_size =
+        usize::try_from(program_header.p_filesz).map_err(|_| ElfLoadError::SegmentSizeOverflow)?;
+    let memory_size =
+        usize::try_from(program_header.p_memsz).map_err(|_| ElfLoadError::SegmentSizeOverflow)?;
     let load_address = usize::try_from(program_header.p_paddr)
         .map_err(|_| ElfLoadError::SegmentAddressOverflow)?;
     let load_end = load_address
@@ -88,8 +119,10 @@ fn load_segment(
     let file_end = file_offset
         .checked_add(file_size)
         .ok_or(ElfLoadError::SegmentFileRangeOutOfBounds)?;
-    
-    if file_end > bytes.len() { return Err(ElfLoadError::SegmentFileRangeOutOfBounds) }
+
+    if file_end > bytes.len() {
+        return Err(ElfLoadError::SegmentFileRangeOutOfBounds);
+    }
 
     let allocation_address = align_down_to_page(load_address);
     let allocation_offset = page_offset(load_address);
