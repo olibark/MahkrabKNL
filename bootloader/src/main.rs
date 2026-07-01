@@ -2,14 +2,15 @@
 #![no_std]
 
 extern crate alloc;
-
-use crate::{
-    elf::{load_kernel_segments, validate_elf64_x86_64, verify_loaded_segments},
-    filesys::KERNEL_PATH_DISPLAY,
-};
-
 use log::{error, info};
 use uefi::prelude::*;
+
+use crate::{
+    elf::{
+        load_kernel_segments, validate_elf64_x86_64, validate_kernel_entry, verify_loaded_segments,
+    },
+    filesys::KERNEL_PATH_DISPLAY,
+};
 
 mod elf;
 mod filesys;
@@ -24,7 +25,7 @@ fn main() -> Status {
 
     info!("BOOTX64.EFI started");
 
-    let _loaded_kernel = match filesys::load_kernel() {
+    let _loaded_kernel: Option<elf::load::LoadedKernel> = match filesys::load_kernel() {
         Ok(kernel) => {
             info!(
                 "read {} bytes from {}",
@@ -72,8 +73,21 @@ fn main() -> Status {
                                 );
                             }
 
-                            info!("verification complete; halting before kernel entry");
-                            Some(loaded_kernel)
+                            match validate_kernel_entry(&loaded_kernel) {
+                                Ok(kernel_entry) => {
+                                    info!(
+                                        "transferring control to kernel entry {:#x} in executable PHDR[{}]",
+                                        kernel_entry.address(),
+                                        kernel_entry.segment_index(),
+                                    );
+
+                                    unsafe { (kernel_entry.function())() }
+                                }
+                                Err(err) => {
+                                    error!("kernel entry point validation failed: {err:?}");
+                                    None
+                                }
+                            }
                         }
                         Err(err) => {
                             error!("failed to load {KERNEL_PATH_DISPLAY}: {err:?}");
