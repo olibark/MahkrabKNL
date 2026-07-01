@@ -9,8 +9,11 @@ use crate::elf::{
     program_header::ProgramHeaders,
 };
 
+/// ## Loaded ELF kernel and its segments.
 pub struct LoadedKernel {
+    /// ELF entry address.
     entry: u64,
+    /// Loaded segments.
     segments: Vec<LoadedSegment>,
 }
 
@@ -24,12 +27,19 @@ impl LoadedKernel {
     }
 }
 
+/// ## Loaded ELF segment.
 pub struct LoadedSegment {
+    /// Index of the segment in the program header table.
     index: usize,
+    /// ELF program header for the segment.
     header: Elf64Phdr,
+    /// Allocated pages for the segment.
     pages: LoadedPages,
+    /// Load address of the segment in memory.
     load_address: usize,
+    /// End address of the segment in memory.
     load_end: usize,
+    /// End address of the allocated pages for the segment.
     allocated_end: usize,
 }
 
@@ -72,6 +82,7 @@ impl LoadedSegment {
     }
 }
 
+/// ## Loads the kernel segments from the ELF file bytes and returns `LoadedKernel`.
 pub fn load_kernel_segments(
     bytes: &[u8],
     header: &Elf64Ehdr,
@@ -96,15 +107,29 @@ pub fn load_kernel_segments(
     })
 }
 
+/// ## Loads one `PT_LOAD` segment from the ELF file bytes
+/// Copies the segments file-backed bytes into memory, then zero-initilaises the
+/// remaining memory range used for `.bss` and other uninitialised data.
+/// 
+/// Returns `LoadedSegment` containing the segments load address, size and allocated pages.
+/// 
+/// ## Errors
+///  - the segment declares more file data than memory size;
+///  - an ELF address, offset, or size cannot fit in `usize`;
+///  - an address or size calculation overflow;
+///  - the segment file range lies outside `bytes`;
+///  - UEFI cannot allocate required pages.
 fn load_segment(
     bytes: &[u8],
     index: usize,
     program_header: Elf64Phdr,
 ) -> Result<LoadedSegment, ElfLoadError> {
+    // Loadable segment cannot require more file data than its in-memory size.
     if program_header.p_filesz > program_header.p_memsz {
         return Err(ElfLoadError::SegmentFileLargerThanMemory);
     }
 
+    // Convert ELF fields into native address-space values before pointer arithmetic.
     let file_offset =
         usize::try_from(program_header.p_offset).map_err(|_| ElfLoadError::SegmentSizeOverflow)?;
     let file_size =
@@ -113,6 +138,8 @@ fn load_segment(
         usize::try_from(program_header.p_memsz).map_err(|_| ElfLoadError::SegmentSizeOverflow)?;
     let load_address = usize::try_from(program_header.p_paddr)
         .map_err(|_| ElfLoadError::SegmentAddressOverflow)?;
+    
+    // Calculate end addresses while detecting integer overflow/
     let load_end = load_address
         .checked_add(memory_size)
         .ok_or(ElfLoadError::SegmentAddressOverflow)?;
@@ -120,10 +147,15 @@ fn load_segment(
         .checked_add(file_size)
         .ok_or(ElfLoadError::SegmentFileRangeOutOfBounds)?;
 
+    // Ensure the segment file range lies within the ELF file bytes.
     if file_end > bytes.len() {
         return Err(ElfLoadError::SegmentFileRangeOutOfBounds);
     }
 
+    /*  
+      UEFI allocates whole pages, so include the offset of the requested load address
+      within the first page when calculating the allocation size.
+    */
     let allocation_address = align_down_to_page(load_address);
     let allocation_offset = page_offset(load_address);
     let allocation_size = allocation_offset
