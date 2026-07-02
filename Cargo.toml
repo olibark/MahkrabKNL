@@ -1,3 +1,6 @@
 [workspace]
-members = ["bootloader"]
+members = [
+    "bootprotocol",
+    "bootloader",
+]
 resolver = "3"

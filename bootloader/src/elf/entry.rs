@@ -1,32 +1,34 @@
 use core::mem;
 
+use bootprotocol::BootInfo;
+
 use crate::elf::load::{LoadedKernel, LoadedSegment};
 
-/// ## Kernel entry-point function type
+/// ### Kernel entry-point function type
 /// Transfers execution to loaded kernel.
-/// 
-/// Uses the System V AMD64 calling conventions and never returns.
-pub type KernelEntry = unsafe extern "sysv64" fn() -> !;
+///
+/// Uses the System V AMD64 calling convension and never returns.
+pub type KernelEntry = unsafe extern "sysv64" fn(*const BootInfo) -> !;
 
 /// Errors returned while validating ELF kernel entry point.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum EntryPointError {
     /// ELF entry address does not fit in usize.
-    AddressOverflow, 
+    AddressOverflow,
     /// The entry address is not in an executable load segment.
-    NotInExecutableLoadSegment, 
+    NotInExecutableLoadSegment,
 }
 
-/// ## Validated kernel entry point
+/// ### Validated kernel entry point
 /// Confirms the ELF entry address fits in `usize`` and lies within
 /// an executable load segment.
-/// 
+///
 /// Does not prove validity of machine instructions.
 #[derive(Clone, Copy)]
 pub struct ValidatedKernelEntry {
     address: usize,
     segment_index: usize,
-    function: KernelEntry, 
+    function: KernelEntry,
 }
 
 impl ValidatedKernelEntry {
@@ -44,7 +46,7 @@ impl ValidatedKernelEntry {
     }
 }
 
-/// ## Validates the entry point declared in the loaded ELF kernel.
+/// ### Validates the entry point declared in the loaded ELF kernel.
 /// Entry must fit in `usize and be in an executable loaded
 /// segment before it is converted to [`KernelEntry`] function pointer.
 pub fn validate_kernel_entry(
@@ -59,9 +61,9 @@ pub fn validate_kernel_entry(
         .find(|segment| contains_executable_entry(segment, entry_address))
         .ok_or(EntryPointError::NotInExecutableLoadSegment)?;
 
-    /* 
+    /*
       Address is valid and in an executable segment. The kernel ELF is trusted to
-      provide a valid entry point using System V AMD64 convention. 
+      provide a valid entry point using System V AMD64 convention.
     */
     let function = unsafe { mem::transmute::<usize, KernelEntry>(entry_address) };
 
@@ -72,7 +74,7 @@ pub fn validate_kernel_entry(
     })
 }
 
-/// ## Returns whether `entry_address` is in an executable load segment.
+/// ### Returns whether `entry_address` is in an executable load segment.
 fn contains_executable_entry(segment: &LoadedSegment, entry_address: usize) -> bool {
     segment.flags().execute()
         && entry_address >= segment.load_address()

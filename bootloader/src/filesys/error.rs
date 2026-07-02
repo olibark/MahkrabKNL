@@ -1,16 +1,24 @@
+//! Error types produced while opening and reading the ELF file.
+
 use core::fmt;
 
 use uefi::{Error as UefiError, fs::Error as FileSystemError};
 
+/// Result type for kernel loading.
 pub type Result<T> = core::result::Result<T, KernelLoadError>;
 
+
+/// ### Errors which can occur before kernel ELF is avaliabke for parsing.
 #[derive(Debug)]
 pub enum KernelLoadError {
+    /// UEFI boot volume could not be opened.
     OpenBootVolume(UefiError),
+    /// Kernel could not be read from the boot volume.
     ReadKernel(FileSystemError),
 }
 
 impl fmt::Display for KernelLoadError {
+    /// Formats kernel loading failure.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::OpenBootVolume(err) => write!(f, "could not open boot volume: {err}"),
@@ -19,6 +27,7 @@ impl fmt::Display for KernelLoadError {
     }
 }
 
+/// ### Formats a filesystem error.
 fn write_file_system_error(f: &mut fmt::Formatter<'_>, err: &FileSystemError) -> fmt::Result {
     match err {
         FileSystemError::Io(err) => write!(

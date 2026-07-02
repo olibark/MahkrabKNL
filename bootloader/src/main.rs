@@ -1,3 +1,8 @@
+//! # UEFI bootloader entry point.
+//! Loads the kernel ELF image from the EFI system partition,
+//! validates its ELF64 x86-64 metadata, allocates and copies its
+//! loadable segments, builds the shared kernel boot infomration,
+//! and transfers control to the validated kernel entry point.
 #![no_main]
 #![no_std]
 
@@ -6,17 +11,25 @@ use log::{error, info};
 use uefi::prelude::*;
 
 use crate::{
+    boot_info::build_boot_info,
     elf::{
         load_kernel_segments, validate_elf64_x86_64, validate_kernel_entry, verify_loaded_segments,
     },
     filesys::KERNEL_PATH_DISPLAY,
 };
 
+mod boot_info;
 mod elf;
 mod filesys;
 
 pub(crate) mod sys;
 
+/// ### UEFI application entry point.
+/// Initialises UEFI support, loads and validates the kernel, prepares the
+/// kernels memory and boot information, then jumps to the kernel entry point.
+/// 
+/// The successful hand off is not expected to return. All failure paths log
+/// the cause and fall through the ceiling to [`sys::halt`].
 #[entry]
 fn main() -> Status {
     if let Err(err) = uefi::helpers::init() {
@@ -24,7 +37,8 @@ fn main() -> Status {
     }
 
     info!("BOOTX64.EFI started");
-
+    // Retain child custody of loaded segment allocations until the kernel takes control.
+    // Dropping `LoadedKernel` before the hand off frees them.
     let _loaded_kernel: Option<elf::load::LoadedKernel> = match filesys::load_kernel() {
         Ok(kernel) => {
             info!(
@@ -48,7 +62,9 @@ fn main() -> Status {
                                 loaded_kernel.segments().len(),
                                 loaded_kernel.entry(),
                             );
-
+                            
+                            // Re read each loaded segment and log the result.
+                            // This is diagnostic, not part of loading path.
                             for (segment, verification) in loaded_kernel
                                 .segments()
                                 .iter()
@@ -74,15 +90,30 @@ fn main() -> Status {
                             }
 
                             match validate_kernel_entry(&loaded_kernel) {
-                                Ok(kernel_entry) => {
-                                    info!(
-                                        "transferring control to kernel entry {:#x} in executable PHDR[{}]",
-                                        kernel_entry.address(),
-                                        kernel_entry.segment_index(),
-                                    );
+                                Ok(kernel_entry) => match build_boot_info() {
+                                    Ok(boot_info) => {
+                                        info!(
+                                            "boot info: framebuffer={:#x} size={:#x} {}x{} stride={} pixel_format={}",
+                                            boot_info.framebuffer_base,
+                                            boot_info.framebuffer_size,
+                                            boot_info.width,
+                                            boot_info.height,
+                                            boot_info.pixels_per_scan_line,
+                                            boot_info.pixel_format,
+                                        );
+                                        info!(
+                                            "transferring control to kernel entry {:#x} in executable PHDR[{}]",
+                                            kernel_entry.address(),
+                                            kernel_entry.segment_index(),
+                                        );
 
-                                    unsafe { (kernel_entry.function())() }
-                                }
+                                        unsafe { (kernel_entry.function())(boot_info) }
+                                    }
+                                    Err(err) => {
+                                        error!("failed to build boot info: {err}");
+                                        None
+                                    }
+                                },
                                 Err(err) => {
                                     error!("kernel entry point validation failed: {err:?}");
                                     None
@@ -107,5 +138,7 @@ fn main() -> Status {
         }
     };
 
+    // Every recoverable error path reaches here. *Rome*. Function should not 
+    // return to UEFI after partially completed kernel loading attempt.
     sys::halt();
 }

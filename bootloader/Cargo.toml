@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
+bootprotocol = { path = "../bootprotocol" }
 log = "0.4"
 uefi = { version = "0.37", features = [
     "logger", 

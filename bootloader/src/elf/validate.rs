@@ -1,3 +1,5 @@
+//! # Validation and decoding for ELF64 x86-64 executable headers.
+
 use crate::elf::{
     constants::{
         EiIndex, Elf64Ehdr, ElfClass, ElfData, ElfLoadError, ElfMachine, ElfMagic, ElfType,
@@ -6,8 +8,30 @@ use crate::elf::{
     le_read::{read_u16, read_u32, read_u64},
 };
 
+/// ### Validates and decodes an ELF64 little-endian x86-64 executable header.
+/// Verifies that `bytes` contains an ELF file supported by the bootloader.
+///
+/// ### Verifies:
+/// - ELF64 format;
+/// - little-endian encoding;
+/// - current ELF version;
+/// - x86-64 target;
+/// - executable or position-independent executable type;
+/// - a program header table fully contained within bytes.
+///
+/// Section headers are decoded into the returned [`Elf64Ehdr`] but are not
+/// validatedm, as the bootloader loads segments throufh the program header
+/// table than section header metadata.
+///
+/// ### Errors:
+///  - Returns an [`ElfLoadError`] when the file is too small, has an invalid ELF
+/// identity, targets are if an unsupported format or architcture, contains invalid header
+/// sizes, or declares a program header table outside the file bounds.
 pub fn validate_elf64_x86_64(bytes: &[u8]) -> Result<Elf64Ehdr, ElfLoadError> {
+    /// Size of an ELF64 header.
     const ELF64_EHDR_SIZE: usize = 64;
+
+    /// Size of an ELF64 program header entry.
     const ELF64_PHDR_SIZE: u16 = 56;
 
     if bytes.len() < ELF64_EHDR_SIZE {
