@@ -18,9 +18,14 @@ checksum = "84d7ced0ae9557296835c32bf1b1e02b44c746701f898460fb000d7eaa84f00a"
 name = "bootloader"
 version = "0.1.0"
 dependencies = [
+ "bootprotocol",
  "log",
  "uefi",
 ]
+
+[[package]]
+name = "bootprotocol"
+version = "0.1.0"
 
 [[package]]
 name = "cfg-if"

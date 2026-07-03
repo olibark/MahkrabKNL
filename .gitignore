@@ -17,3 +17,7 @@ dist/
 .vscode/
 .DS_Store
 Thumbs.db
+sheets/
+.codex
+.agents
+AGENTS.md
